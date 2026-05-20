@@ -2,33 +2,29 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
-from .models import Course, Lesson, Question, Choice, Submission
-
-def course_list(request):
-    courses = Course.objects.all()
-    return render(request, 'course_list.html', {'courses': courses})
-
-def course_detail(request, course_id):
-    course = get_object_or_404(Course, id=course_id)
-    return render(request, 'course_details_bootstrap.html', {'course': course})
+from .models import Course, Lesson, Question, Choice, Submission, Enrollment
 
 @login_required
-def take_exam(request, lesson_id):
-    lesson = get_object_or_404(Lesson, id=lesson_id)
-    questions = lesson.questions.all()
+def take_exam(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    enrollment, created = Enrollment.objects.get_or_create(user=request.user, course=course)
+    questions = []
+    for lesson in course.lessons.all():
+        questions.extend(lesson.questions.all())
     
     if request.method == 'POST':
-        return submit_exam(request, lesson, questions)
+        return submit_exam(request, course, enrollment, questions)
     
-    return render(request, 'exam.html', {'lesson': lesson, 'questions': questions})
+    return render(request, 'exam.html', {'course': course, 'questions': questions})
 
-# Fonction submit
-def submit_exam(request, lesson, questions):
+# Fonction submit corrigée
+def submit_exam(request, course, enrollment, questions):
     score = 0
-    total = questions.count()
+    total_points = 0
     
     with transaction.atomic():
         for question in questions:
+            total_points += question.points
             selected_choice_id = request.POST.get(f'question_{question.id}')
             if selected_choice_id:
                 selected_choice = get_object_or_404(Choice, id=selected_choice_id)
@@ -45,24 +41,24 @@ def submit_exam(request, lesson, questions):
                     }
                 )
     
-    return redirect('show_exam_result', lesson_id=lesson.id)
+    return redirect('show_exam_result', course_id=course.id)
 
-# Fonction show_exam_result
+# Fonction show_exam_result corrigée
 @login_required
-def show_exam_result(request, lesson_id):
-    lesson = get_object_or_404(Lesson, id=lesson_id)
-    submissions = Submission.objects.filter(user=request.user, question__lesson=lesson)
+def show_exam_result(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    submissions = Submission.objects.filter(user=request.user, question__lesson__course=course)
     
-    total_questions = lesson.questions.count()
-    correct_answers = submissions.filter(is_correct=True).count()
-    score_percentage = (correct_answers / total_questions * 100) if total_questions > 0 else 0
+    total_score = sum(s.question.points for s in submissions if s.is_correct)
+    possible_score = sum(s.question.points for s in submissions)
+    score_percentage = (total_score / possible_score * 100) if possible_score > 0 else 0
     passed = score_percentage >= 70
     
-    return render(request, 'exam_result.html', {
-        'lesson': lesson,
+    return render(request, 'exam_result_bootstrap.html', {
+        'course': course,
         'submissions': submissions,
-        'total_questions': total_questions,
-        'correct_answers': correct_answers,
+        'total_score': total_score,
+        'possible_score': possible_score,
         'score_percentage': round(score_percentage, 1),
         'passed': passed
     })
