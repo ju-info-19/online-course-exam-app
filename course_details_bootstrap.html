@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ course.title }} - OnlineCourse{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'course_list' %}">Courses</a></li>
+                    <li class="breadcrumb-item active">{{ course.title }}</li>
+                </ol>
+            </nav>
+            
+            <h1 class="mb-3">{{ course.title }}</h1>
+            <p class="lead">{{ course.description }}</p>
+            
+            <hr>
+            
+            <h2>📚 Lessons</h2>
+            <div class="list-group mt-3">
+                {% for lesson in course.lessons.all %}
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ lesson.order }}. {{ lesson.title }}</h5>
+                        <small>Lesson {{ lesson.order }}</small>
+                    </div>
+                    <p class="mb-1">{{ lesson.content|truncatewords:30 }}</p>
+                    <a href="{% url 'lesson_detail' lesson.id %}" class="btn btn-sm btn-outline-primary mt-2">📖 View Lesson</a>
+                    {% if lesson.questions.exists %}
+                    <a href="{% url 'take_exam' lesson.id %}" class="btn btn-sm btn-success mt-2">📝 Take Exam</a>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="alert alert-info">No lessons available yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    📊 Course Info
+                </div>
+                <div class="card-body">
+                    <p><strong>📅 Created:</strong> {{ course.created_at|date:"F j, Y" }}</p>
+                    <p><strong>📖 Lessons:</strong> {{ course.lessons.count }}</p>
+                    <p><strong>❓ Total Questions:</strong> 
+                        {% with total=0 %}
+                            {% for lesson in course.lessons.all %}
+                                {% with total=total|add:lesson.questions.count %}{% endwith %}
+                            {% endfor %}
+                            {{ course.lessons.all|length }}
+                        {% endwith %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
